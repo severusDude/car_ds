@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Car Price Prediction
 
-## Getting Started
+Next.js + FastAPI car price prediction app. The browser uses the Next.js UI and `/api/predict`; the Next route validates payloads with zod and proxies to the FastAPI model backend.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```mermaid
+flowchart LR
+  Browser["Browser"] --> UI["Next.js app /"]
+  UI --> Proxy["Next route /api/predict"]
+  Proxy --> API["FastAPI /backend"]
+  API --> Artifact["car_price_linear.joblib"]
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Install frontend dependencies:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm install
+```
 
-## Learn More
+Train the model and start FastAPI:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+cd model
+uv sync --group dev
+uv run python train_model.py
+uv run --group dev uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start Next.js in another terminal:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm dev
+```
 
-## Deploy on Vercel
+Open `http://127.0.0.1:3000`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Production Build
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm lint
+pnpm build
+```
+
+FastAPI smoke test:
+
+```bash
+cd model
+uv run python -c "from fastapi.testclient import TestClient; from app import app; c=TestClient(app); print(c.get('/health').json()); print(c.post('/predict', json={'Engine_size':3,'Horsepower':250,'Wheelbase':105,'Width':70,'Length':180,'Curb_weight':3.5,'Fuel_capacity':18,'Fuel_efficiency':22}).json())"
+```
+
+## Vercel Deployment
+
+This repo is configured for Vercel Services in `vercel.json`:
+
+- `web`: Next.js at `/`
+- `backend`: FastAPI at `/backend`
+
+Run locally through Vercel routing:
+
+```bash
+vercel dev -L
+```
+
+Deploy:
+
+```bash
+vercel deploy
+vercel deploy --prod
+```
+
+See `docs/DEPLOYMENT.md` for full setup, health checks, and bundle notes.
