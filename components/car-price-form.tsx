@@ -1,16 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import {
   Car,
-  ChevronDown,
   Fuel,
   Gauge,
   Leaf,
   Loader2,
-  Moon,
   MoveDiagonal,
   MoveHorizontal,
   Ruler,

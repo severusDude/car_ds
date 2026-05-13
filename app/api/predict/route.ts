@@ -5,7 +5,15 @@ import {
 
 export const runtime = "nodejs";
 
-const FASTAPI_URL = process.env.FASTAPI_URL ?? "http://127.0.0.1:8000";
+const LOCAL_FASTAPI_URL = "http://127.0.0.1:8000";
+
+function getPredictionServiceUrl() {
+  return (
+    process.env.BACKEND_URL ??
+    process.env.FASTAPI_URL ??
+    LOCAL_FASTAPI_URL
+  ).replace(/\/$/, "");
+}
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -28,8 +36,10 @@ export async function POST(request: Request) {
     );
   }
 
+  const predictionServiceUrl = getPredictionServiceUrl();
+
   try {
-    const response = await fetch(`${FASTAPI_URL}/predict`, {
+    const response = await fetch(`${predictionServiceUrl}/predict`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parsedPayload.data),
@@ -61,7 +71,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         detail:
-          "Prediction service is unavailable. Start FastAPI on http://127.0.0.1:8000.",
+          `Prediction service is unavailable at ${predictionServiceUrl}.`,
       },
       { status: 503 }
     );

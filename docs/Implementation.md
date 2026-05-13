@@ -59,10 +59,19 @@ Response shape:
 The browser posts to `/api/predict`. The Next.js route handler forwards the payload to FastAPI using:
 
 ```txt
+BACKEND_URL=https://<deployment>.vercel.app/backend
 FASTAPI_URL=http://127.0.0.1:8000
 ```
 
-If `FASTAPI_URL` is not set, the route defaults to `http://127.0.0.1:8000`.
+On Vercel Services, `BACKEND_URL` is generated automatically for the `backend` service. For standalone local development, `FASTAPI_URL` can point at a local FastAPI server. If neither is set, the route defaults to `http://127.0.0.1:8000`.
+
+## Production Deployment
+
+- `vercel.json` defines two Vercel Services: Next.js at `/` and FastAPI at `/backend`.
+- FastAPI loads `model/models/car_price_linear.joblib` once per process with an in-memory cache.
+- `GET /health` reports readiness details: model load status, model version, feature count, artifact path, and training metrics.
+- Runtime Python dependencies are limited to FastAPI, model serving, and scikit-learn packages; notebook/Jupyter packages live in the dev dependency group.
+- Full deployment steps are documented in `docs/DEPLOYMENT.md`.
 
 ## Frontend Contract and View
 
