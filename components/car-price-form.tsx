@@ -1,87 +1,104 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { Calculator, Loader2, RotateCcw } from "lucide-react";
+import Image from "next/image";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import {
+  Car,
+  ChevronDown,
+  Fuel,
+  Gauge,
+  Leaf,
+  Loader2,
+  Moon,
+  MoveDiagonal,
+  MoveHorizontal,
+  Ruler,
+  Scale,
+  Zap,
+} from "lucide-react";
+import { Controller, type Resolver, useForm, useWatch } from "react-hook-form";
 
+import {
+  carPriceDefaultValues,
+  carPriceFields,
+  carPriceInputSchema,
+  type CarPriceFieldKey,
+  type CarPriceInput,
+  type PredictionResponse,
+  predictionResponseSchema,
+} from "@/lib/car-price-contract";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
-type FeatureKey =
-  | "Engine_size"
-  | "Horsepower"
-  | "Wheelbase"
-  | "Width"
-  | "Length"
-  | "Curb_weight"
-  | "Fuel_capacity"
-  | "Fuel_efficiency";
-
-type PredictionResponse = {
-  predicted_price_thousands: number;
-  predicted_price_usd: number;
-  model: string;
+const iconMap = {
+  gauge: Gauge,
+  zap: Zap,
+  ruler: Ruler,
+  "move-horizontal": MoveHorizontal,
+  "move-diagonal": MoveDiagonal,
+  scale: Scale,
+  fuel: Fuel,
+  leaf: Leaf,
 };
 
-const fields: Array<{
-  key: FeatureKey;
-  label: string;
-  suffix: string;
-  step: string;
-}> = [
-  { key: "Engine_size", label: "Engine size", suffix: "L", step: "0.1" },
-  { key: "Horsepower", label: "Horsepower", suffix: "hp", step: "1" },
-  { key: "Wheelbase", label: "Wheelbase", suffix: "in", step: "0.1" },
-  { key: "Width", label: "Width", suffix: "in", step: "0.1" },
-  { key: "Length", label: "Length", suffix: "in", step: "0.1" },
-  { key: "Curb_weight", label: "Curb weight", suffix: "k lb", step: "0.001" },
-  { key: "Fuel_capacity", label: "Fuel capacity", suffix: "gal", step: "0.1" },
-  { key: "Fuel_efficiency", label: "Fuel efficiency", suffix: "mpg", step: "1" },
-];
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
-const sampleValues: Record<FeatureKey, string> = {
-  Engine_size: "3.0",
-  Horsepower: "250",
-  Wheelbase: "105.0",
-  Width: "70.0",
-  Length: "180.0",
-  Curb_weight: "3.5",
-  Fuel_capacity: "18.0",
-  Fuel_efficiency: "22",
-};
+function fieldValue(
+  values: Partial<Record<CarPriceFieldKey, number>>,
+  key: CarPriceFieldKey,
+) {
+  const value = values[key];
+  return Number.isFinite(value) ? String(value) : "xxx";
+}
 
 export function CarPriceForm() {
-  const [values, setValues] = useState(sampleValues);
+  const form = useForm<CarPriceInput>({
+    resolver: zodResolver(
+      carPriceInputSchema as never,
+    ) as Resolver<CarPriceInput>,
+    defaultValues: carPriceDefaultValues,
+    mode: "onSubmit",
+  });
   const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [submittedValues, setSubmittedValues] = useState<CarPriceInput>(
+    carPriceDefaultValues,
+  );
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const payload = useMemo(() => {
-    return fields.reduce(
-      (next, field) => ({
-        ...next,
-        [field.key]: Number(values[field.key]),
-      }),
-      {} as Record<FeatureKey, number>
-    );
-  }, [values]);
+  const watchedValues = useWatch({ control: form.control });
+  const isSubmitting = form.formState.isSubmitting;
+  const summaryValues = prediction ? submittedValues : watchedValues;
+  const price = prediction
+    ? formatCurrency(prediction.predicted_price_usd)
+    : "$20.000";
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setPrediction(null);
+  async function onSubmit(values: CarPriceInput) {
+    setApiError(null);
 
-    const invalidField = fields.find((field) => !Number.isFinite(payload[field.key]) || payload[field.key] <= 0);
-    if (invalidField) {
-      setError(`${invalidField.label} must be a number greater than zero.`);
-      return;
-    }
-
-    setIsLoading(true);
     try {
       const response = await fetch("/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(values),
       });
       const data = await response.json();
 
@@ -89,111 +106,185 @@ export function CarPriceForm() {
         throw new Error(data.detail ?? "Prediction failed.");
       }
 
-      setPrediction(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Prediction failed.");
-    } finally {
-      setIsLoading(false);
+      const parsedPrediction = predictionResponseSchema.parse(data);
+      setPrediction(parsedPrediction);
+      setSubmittedValues(values);
+    } catch (error) {
+      setApiError(
+        error instanceof Error ? error.message : "Prediction failed.",
+      );
     }
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-        <header className="flex items-center justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <p className="text-sm font-medium text-primary">Car Price Prediction</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-normal sm:text-3xl">
-              Estimate vehicle price from core specs.
-            </h1>
+    <main className="min-h-screen bg-[#fbf8ff] text-[#20110b] dark:bg-zinc-950 dark:text-zinc-50">
+      <header className="border-b border-[#e7b8a3] bg-[#fbf8ff]/95 dark:border-zinc-800 dark:bg-zinc-950/95">
+        <div className="mx-auto flex h-20 max-w-[1540px] items-center justify-between px-7">
+          <h1 className="text-3xl font-bold tracking-normal text-[#9b3a00]">
+            Car Prediction
+          </h1>
+
+          <div className="flex items-center gap-2">
+            <ThemeSwitcher />
           </div>
-          <ThemeSwitcher />
-        </header>
+        </div>
+      </header>
 
-        <section className="grid flex-1 gap-6 py-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6"
-          >
-            <div className="grid gap-4 sm:grid-cols-2">
-              {fields.map((field) => (
-                <label key={field.key} className="grid gap-2">
-                  <span className="text-sm font-medium">{field.label}</span>
-                  <span className="flex h-11 items-center rounded-md border border-input bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-                    <input
-                      className="h-full min-w-0 flex-1 rounded-md bg-transparent px-3 text-sm outline-none"
-                      type="number"
-                      min="0"
-                      step={field.step}
-                      value={values[field.key]}
-                      onChange={(event) =>
-                        setValues((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                      }
-                    />
-                    <span className="w-14 border-l border-border px-2 text-center text-xs font-medium text-muted-foreground">
-                      {field.suffix}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
+      <div className="mx-auto grid max-w-[1540px] gap-7 px-7 py-10 lg:grid-cols-[0.82fr_1.18fr]">
+        <section className="rounded-lg border border-[#e3ac96] bg-white px-10 py-12 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="text-3xl font-semibold tracking-normal text-zinc-950 dark:text-zinc-50">
+            Prediksi Harga Mobil
+          </h2>
 
-            {error && (
-              <p className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-9">
+            <FieldGroup className="gap-5">
+              {carPriceFields.map((field) => {
+                const Icon = iconMap[field.icon as keyof typeof iconMap];
+                const error = form.formState.errors[field.key];
+
+                return (
+                  <Controller
+                    key={field.key}
+                    control={form.control}
+                    name={field.key}
+                    render={({ field: controllerField }) => (
+                      <Field data-invalid={!!error} className="gap-2">
+                        <FieldLabel
+                          htmlFor={field.key}
+                          className="text-sm font-medium uppercase text-[#3a1a0d] dark:text-zinc-200"
+                        >
+                          {field.label}
+                        </FieldLabel>
+                        <InputGroup className="h-14 rounded-md border border-[#ded7e4] bg-[#fbf8ff] dark:border-zinc-700 dark:bg-zinc-950">
+                          <InputGroupAddon>
+                            <Icon className="size-4" />
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            id={field.key}
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step={field.step}
+                            placeholder={field.placeholder}
+                            aria-invalid={!!error}
+                            value={
+                              Number.isFinite(controllerField.value)
+                                ? controllerField.value
+                                : ""
+                            }
+                            onChange={(event) =>
+                              controllerField.onChange(
+                                Number(event.target.value),
+                              )
+                            }
+                            onBlur={controllerField.onBlur}
+                            name={controllerField.name}
+                            ref={controllerField.ref}
+                            className="text-base"
+                          />
+                          <InputGroupAddon align="inline-end">
+                            {field.unit}
+                          </InputGroupAddon>
+                        </InputGroup>
+                        <FieldError errors={error ? [error] : []} />
+                      </Field>
+                    )}
+                  />
+                );
+              })}
+            </FieldGroup>
+
+            {apiError && (
+              <p className="mt-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {apiError}
               </p>
             )}
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button type="submit" size="lg" className="rounded-md" disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin" /> : <Calculator />}
-                Predict Price
-              </Button>
+            <div className="flex items-center w-full gap-2">
               <Button
                 type="button"
+                onClick={() => form.reset()}
                 variant="outline"
                 size="lg"
-                className="rounded-md"
-                onClick={() => {
-                  setValues(sampleValues);
-                  setPrediction(null);
-                  setError(null);
-                }}
+                className="mt-10 rounded-md bg-[#ff6500] text-base font-semibold text-white shadow-md hover:bg-[#e85d00]"
               >
-                <RotateCcw />
                 Reset
+              </Button>
+
+              <Button
+                type="button"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={isSubmitting}
+                className="mt-10 rounded-md bg-[#ff6500] text-base font-semibold text-white shadow-md hover:bg-[#e85d00]"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" /> : <Car />}
+                Hitung Harga Mobil
               </Button>
             </div>
           </form>
+        </section>
 
-          <aside className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-6">
-            <p className="text-sm font-medium text-muted-foreground">Predicted value</p>
-            <div className="mt-4 min-h-32">
-              {prediction ? (
-                <>
-                  <p className="text-4xl font-semibold tracking-normal">
-                    {new Intl.NumberFormat("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                      maximumFractionDigits: 0,
-                    }).format(prediction.predicted_price_usd)}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {prediction.predicted_price_thousands.toFixed(3)} thousand USD using {prediction.model}.
-                  </p>
-                </>
-              ) : (
-                <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                  Enter specs and run prediction. Defaults match notebook sample input.
-                </p>
+        <section className="space-y-8">
+          <div className="rounded-lg border border-[#e3ac96] bg-white px-10 py-12 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="text-3xl font-semibold tracking-normal text-zinc-950 dark:text-zinc-50">
+              Perkiraan Harga Mobil
+            </h2>
+
+            <div
+              className={cn(
+                "mt-11 flex min-h-44 items-center justify-center rounded-lg border border-[#ff8b61] bg-[#fff1ec] text-5xl font-bold tracking-normal text-[#5a1d05] dark:bg-[#2b1209] dark:text-orange-100",
+                isSubmitting && "animate-pulse",
               )}
+            >
+              {price}
             </div>
-          </aside>
+
+            <div className="mt-12 grid gap-5 sm:grid-cols-2">
+              {carPriceFields.slice(0, 4).map((field) => (
+                <div
+                  key={field.key}
+                  className="rounded-md border border-[#e5dfec] bg-[#f3f0fb] px-6 py-5 dark:border-zinc-800 dark:bg-zinc-950"
+                >
+                  <p className="text-sm font-medium uppercase tracking-normal text-zinc-600 dark:text-zinc-400">
+                    {field.label}
+                  </p>
+                  <p className="mt-3 text-lg font-semibold text-zinc-950 dark:text-zinc-100">
+                    {fieldValue(summaryValues, field.key)} {field.unit}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#91bdff] bg-[#e4f0ff] px-10 py-9 text-[#101827] dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-50">
+            <p className="mb-6 text-base font-medium uppercase">
+              Sistem ini dibuat oleh:
+            </p>
+            <dl className="grid max-w-md grid-cols-[90px_1fr] gap-y-3 text-base">
+              <dt>NAMA</dt>
+              <dd>: Lutfi Fajar Salladin</dd>
+              <dt>NPM</dt>
+              <dd>: 237006095</dd>
+            </dl>
+          </div>
         </section>
       </div>
+
+      <footer className="border-t border-[#e7b8a3] bg-white px-7 py-10 dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="mx-auto flex max-w-[1540px] flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-semibold text-zinc-950 dark:text-zinc-50">
+              AutoPredict AI
+            </p>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              © 2024 AutoPredict AI. All rights reserved.
+            </p>
+          </div>
+          <nav className="flex flex-wrap gap-8 text-sm text-zinc-500 dark:text-zinc-400">
+            <span>Documentation</span>
+          </nav>
+        </div>
+      </footer>
     </main>
   );
 }

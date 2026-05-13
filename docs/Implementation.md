@@ -63,3 +63,11 @@ FASTAPI_URL=http://127.0.0.1:8000
 ```
 
 If `FASTAPI_URL` is not set, the route defaults to `http://127.0.0.1:8000`.
+
+## Frontend Contract and View
+
+- Shared zod contracts live in `lib/car-price-contract.ts`.
+- The `/api/predict` route validates request and response payloads before returning JSON.
+- The prediction form uses `react-hook-form`, `zodResolver`, shadcn `Field`, and shadcn `InputGroup`.
+- The page layout follows `docs/screen.png`: predictor nav, left form card, right estimate card, author panel, car visual band, and footer.
+- The car visual is a local asset at `public/car-hero.png`.
