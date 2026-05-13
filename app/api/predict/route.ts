@@ -15,6 +15,19 @@ function getPredictionServiceUrl() {
   ).replace(/\/$/, "");
 }
 
+function getPredictionServiceHeaders() {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    headers["x-vercel-protection-bypass"] =
+      process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  }
+
+  return headers;
+}
+
 export async function POST(request: Request) {
   let payload: unknown;
 
@@ -41,7 +54,7 @@ export async function POST(request: Request) {
   try {
     const response = await fetch(`${predictionServiceUrl}/predict`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getPredictionServiceHeaders(),
       body: JSON.stringify(parsedPayload.data),
       cache: "no-store",
     });

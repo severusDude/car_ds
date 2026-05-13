@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "model/.venv/**",
+    "model/.uv-cache/**",
+    "model/.uv-lock-env/**",
     "model/models/**",
     "model/data/processed/**",
   ]),

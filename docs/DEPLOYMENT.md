@@ -19,6 +19,8 @@ flowchart LR
 
 The browser only calls `/api/predict`. The Next.js route validates the payload and forwards it to the FastAPI service. On Vercel, `BACKEND_URL` is generated automatically for the backend service. Local fallback is `FASTAPI_URL`, then `http://127.0.0.1:8000`.
 
+If Vercel Deployment Protection is enabled, the backend service can return `401 Unauthorized` to the Next.js proxy. Enable Protection Bypass for Automation in the Vercel project settings and redeploy. Vercel exposes the generated value as `VERCEL_AUTOMATION_BYPASS_SECRET`; the `/api/predict` route sends it only from server to server using the `x-vercel-protection-bypass` header.
+
 ## Runtime
 
 Frontend:
@@ -70,6 +72,20 @@ After deploy, verify:
 - `GET /backend/health` returns `status: ok` and `model_loaded: true`
 - `GET /backend/features` returns the eight model features
 - `POST /api/predict` returns `predicted_price_usd`
+
+## 401 on `/api/predict`
+
+If the browser console shows:
+
+```txt
+POST /api/predict 401 Unauthorized
+```
+
+Check the Network response body:
+
+- If the body is from Vercel Deployment Protection, use the production domain or disable protection for the deployment URL.
+- If the body is from the backend service, enable Protection Bypass for Automation, redeploy, and confirm `VERCEL_AUTOMATION_BYPASS_SECRET` exists in the deployment environment.
+- Do not expose `VERCEL_AUTOMATION_BYPASS_SECRET` with `NEXT_PUBLIC_`; it must remain server-only.
 
 ## Bundle Notes
 

@@ -57,6 +57,7 @@ This repo is configured for Vercel Services in `vercel.json`:
 
 - `web`: Next.js at `/`
 - `backend`: FastAPI at `/backend`
+- protected backend calls use server-only `VERCEL_AUTOMATION_BYPASS_SECRET` when Vercel Deployment Protection is enabled
 
 Run locally through Vercel routing:
 
